@@ -5,7 +5,11 @@ import {
   type State,
   type HandlerCallback,
 } from "@elizaos/core";
-import { fetchPositions, evaluatePositions } from "../services/positions.js";
+import {
+  fetchPositions,
+  evaluatePositions,
+  PositionsUnavailableError,
+} from "../services/positions.js";
 
 function setting(runtime: IAgentRuntime, key: string): string {
   const v = runtime.getSetting(key);
@@ -26,7 +30,7 @@ function getWarnPct(runtime: IAgentRuntime): number {
 export const monitorPositionsAction: Action = {
   name: "MONITOR_POSITIONS",
   description:
-    "Scan the user's open Solana DeFi positions (Kamino, MarginFi, Drift) and report any that are approaching liquidation. Use this when the user asks about their leveraged positions, liquidation risk, or DeFi health.",
+    "Scan the user's Solana DeFi risk signals (Kamino, MarginFi, Drift) from live on-chain activity and report medium/high risk warnings. Use this when the user asks about leveraged positions, liquidation risk, or DeFi health.",
   similes: [
     "CHECK_POSITIONS",
     "LIQUIDATION_RISK",
@@ -63,9 +67,8 @@ export const monitorPositionsAction: Action = {
       const summary = positions
         .map(
           (p) =>
-            `• ${p.protocol} ${p.market} @ ${p.leverage}x — health ${p.healthFactor.toFixed(
-              2
-            )} (collateral $${p.collateralUsd.toFixed(0)} / debt $${p.debtUsd.toFixed(0)})`
+            `• ${p.protocol} ${p.market} — risk ${p.riskLevel.toUpperCase()} ` +
+            `(${p.interactionCount} recent tx, ${p.failedInteractionCount} failed)`
         )
         .join("\n");
 
@@ -82,6 +85,13 @@ export const monitorPositionsAction: Action = {
         data: { positions, alerts },
       };
     } catch (err) {
+      if (err instanceof PositionsUnavailableError) {
+        const text =
+          "Live DeFi risk scanning is unavailable right now. " +
+          "Check HELIUS_API_KEY and RPC connectivity, then retry.";
+        if (callback) await callback({ text });
+        return { success: false, text, error: err.message };
+      }
       const errorMsg = err instanceof Error ? err.message : String(err);
       const text = `Position check failed: ${errorMsg}`;
       if (callback) await callback({ text });

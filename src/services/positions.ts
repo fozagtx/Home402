@@ -1,19 +1,20 @@
-// DeFi position source for SolSentinel.
+// DeFi risk signal source for SolSentinel.
 //
-// MVP: returns mock positions so the hackathon demo is deterministic.
-// Post-hackathon: real Kamino / MarginFi / Drift SDK adapters live here.
-// Toggle with MOCK_POSITIONS=false once the real adapters ship.
+// This module uses live on-chain transactions (via Helius RPC) to detect
+// whether a wallet has recently interacted with Kamino / MarginFi / Drift.
+// It intentionally avoids fabricated liquidation metrics; output is strictly
+// evidence-based "risk signals" derived from observed activity.
 
 export type Protocol = "kamino" | "marginfi" | "drift";
 
 export interface Position {
   protocol: Protocol;
   market: string;
-  leverage: number;
-  /** 1.0 = at liquidation, higher = safer. */
-  healthFactor: number;
-  collateralUsd: number;
-  debtUsd: number;
+  riskLevel: "low" | "medium" | "high";
+  reason: string;
+  interactionCount: number;
+  failedInteractionCount: number;
+  lastInteractionTs: number | null;
 }
 
 export interface PositionAlert {
@@ -22,64 +23,205 @@ export interface PositionAlert {
   message: string;
 }
 
-const DEMO_POSITIONS: Position[] = [
-  {
-    protocol: "kamino",
-    market: "SOL/USDC",
-    leverage: 1.8,
-    healthFactor: 1.15,
-    collateralUsd: 5200,
-    debtUsd: 2900,
-  },
-  {
-    protocol: "marginfi",
-    market: "JUP",
-    leverage: 1.2,
-    healthFactor: 1.85,
-    collateralUsd: 800,
-    debtUsd: 150,
-  },
-];
+export class PositionsUnavailableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PositionsUnavailableError";
+  }
+}
+
+const HELIUS_MAINNET = "https://mainnet.helius-rpc.com/?api-key=";
+const LOOKBACK_SIGNATURES = 35;
+const PROGRAM_IDS: Record<Protocol, string> = {
+  kamino: "KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD",
+  marginfi: "MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA",
+  drift: "dRiftyHA39MWEi3m9aunc5MzRF1JYuBsbn6VPcn33UH",
+};
+
+function getHeliusKey(): string {
+  return process.env.HELIUS_API_KEY ?? "";
+}
+
+function heliusUrl(): string {
+  const key = getHeliusKey();
+  if (!key) {
+    throw new PositionsUnavailableError(
+      "HELIUS_API_KEY is missing; cannot run live DeFi risk scanning."
+    );
+  }
+  return `${HELIUS_MAINNET}${key}`;
+}
+
+async function rpc<T>(method: string, params: unknown[]): Promise<T> {
+  const res = await fetch(heliusUrl(), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+  });
+  if (!res.ok) {
+    throw new PositionsUnavailableError(
+      `Helius RPC ${method} failed: ${res.status} ${res.statusText}`
+    );
+  }
+  const data = (await res.json()) as { result?: T; error?: { message: string } };
+  if (data.error) {
+    throw new PositionsUnavailableError(`Helius RPC error: ${data.error.message}`);
+  }
+  return data.result as T;
+}
+
+interface SignatureInfo {
+  signature: string;
+  blockTime?: number | null;
+  err?: unknown;
+}
+
+interface TransactionResult {
+  blockTime?: number | null;
+  transaction?: {
+    message?: {
+      accountKeys?: Array<string | { pubkey?: string }>;
+    };
+  };
+  meta?: {
+    err?: unknown;
+  };
+}
+
+function accountKeyToString(key: string | { pubkey?: string }): string {
+  if (typeof key === "string") return key;
+  return key.pubkey ?? "";
+}
+
+function classifyRisk(
+  interactionCount: number,
+  failedInteractionCount: number,
+  hoursSinceLast: number | null
+): { riskLevel: "low" | "medium" | "high"; reason: string } {
+  if (interactionCount === 0) {
+    return {
+      riskLevel: "low",
+      reason: "No recent protocol interactions found in on-chain history.",
+    };
+  }
+
+  if (failedInteractionCount >= 2) {
+    return {
+      riskLevel: "high",
+      reason:
+        "Multiple recent failed transactions against this protocol; review open exposure and collateral.",
+    };
+  }
+
+  if (failedInteractionCount >= 1) {
+    return {
+      riskLevel: "medium",
+      reason:
+        "At least one recent failed protocol transaction detected; verify account health.",
+    };
+  }
+
+  if (hoursSinceLast !== null && hoursSinceLast <= 6) {
+    return {
+      riskLevel: "medium",
+      reason: "Recent active leverage-related protocol interaction detected.",
+    };
+  }
+
+  return {
+    riskLevel: "low",
+    reason: "Protocol activity detected, but no immediate risk signal.",
+  };
+}
 
 export async function fetchPositions(wallet: string): Promise<Position[]> {
-  if (process.env.MOCK_POSITIONS !== "false") {
-    return DEMO_POSITIONS;
+  const signatures = await rpc<SignatureInfo[]>("getSignaturesForAddress", [
+    wallet,
+    { limit: LOOKBACK_SIGNATURES },
+  ]);
+
+  if (!Array.isArray(signatures) || signatures.length === 0) {
+    return [];
   }
-  // Real adapters land post-hackathon. See roadmap in README.
-  throw new Error(
-    `Real on-chain position adapters not yet implemented for wallet ${wallet}. ` +
-      `Set MOCK_POSITIONS=true for the demo.`
+
+  const txs = await Promise.all(
+    signatures.map((s) =>
+      rpc<TransactionResult | null>("getTransaction", [
+        s.signature,
+        { encoding: "json", maxSupportedTransactionVersion: 0 },
+      ]).catch(() => null)
+    )
   );
+
+  const nowSec = Math.floor(Date.now() / 1000);
+  const rows: Position[] = [];
+
+  for (const [protocol, programId] of Object.entries(PROGRAM_IDS) as Array<
+    [Protocol, string]
+  >) {
+    let interactionCount = 0;
+    let failedInteractionCount = 0;
+    let lastInteractionTs: number | null = null;
+
+    for (const tx of txs) {
+      if (!tx?.transaction?.message?.accountKeys) continue;
+      const keys = tx.transaction.message.accountKeys.map(accountKeyToString);
+      if (!keys.includes(programId)) continue;
+
+      interactionCount += 1;
+      const failed = !!tx.meta?.err;
+      if (failed) failedInteractionCount += 1;
+
+      const ts = tx.blockTime ?? null;
+      if (ts && (!lastInteractionTs || ts > lastInteractionTs)) {
+        lastInteractionTs = ts;
+      }
+    }
+
+    if (interactionCount === 0) continue;
+
+    const hoursSinceLast =
+      lastInteractionTs === null ? null : (nowSec - lastInteractionTs) / 3600;
+    const { riskLevel, reason } = classifyRisk(
+      interactionCount,
+      failedInteractionCount,
+      hoursSinceLast
+    );
+
+    rows.push({
+      protocol,
+      market: "on-chain activity",
+      riskLevel,
+      reason,
+      interactionCount,
+      failedInteractionCount,
+      lastInteractionTs,
+    });
+  }
+
+  return rows;
 }
 
 /**
- * Returns an alert for every position whose health factor is within
- * `warnPct` percent of liquidation (1.0). Critical once inside 5%.
+ * Converts live protocol risk signals into actionable alerts.
  */
 export function evaluatePositions(
   positions: Position[],
-  warnPct: number
+  _warnPct: number
 ): PositionAlert[] {
-  const warnThreshold = 1 + warnPct / 100;
-  const criticalThreshold = 1.05;
   const alerts: PositionAlert[] = [];
   for (const p of positions) {
-    if (p.healthFactor <= criticalThreshold) {
+    if (p.riskLevel === "high") {
       alerts.push({
         position: p,
         severity: "critical",
-        message:
-          `CRITICAL: ${p.protocol} ${p.market} position at ${p.leverage}x ` +
-          `is ${((p.healthFactor - 1) * 100).toFixed(1)}% from liquidation. ` +
-          `Collateral $${p.collateralUsd.toFixed(0)}, debt $${p.debtUsd.toFixed(0)}.`,
+        message: `CRITICAL: ${p.protocol} shows high-risk behavior. ${p.reason}`,
       });
-    } else if (p.healthFactor <= warnThreshold) {
+    } else if (p.riskLevel === "medium") {
       alerts.push({
         position: p,
         severity: "warn",
-        message:
-          `Heads up: ${p.protocol} ${p.market} position at ${p.leverage}x ` +
-          `is ${((p.healthFactor - 1) * 100).toFixed(1)}% from liquidation.`,
+        message: `Heads up: ${p.protocol} shows medium risk. ${p.reason}`,
       });
     }
   }

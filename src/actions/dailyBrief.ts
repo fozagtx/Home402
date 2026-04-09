@@ -6,7 +6,12 @@ import {
   type HandlerCallback,
 } from "@elizaos/core";
 import { fetchWalletSnapshot } from "../services/solana.js";
-import { fetchPositions, evaluatePositions } from "../services/positions.js";
+import {
+  fetchPositions,
+  evaluatePositions,
+  PositionsUnavailableError,
+  type Position,
+} from "../services/positions.js";
 
 function setting(runtime: IAgentRuntime, key: string): string {
   const v = runtime.getSetting(key);
@@ -52,16 +57,25 @@ export const dailyBriefAction: Action = {
     }
 
     try {
-      const [snapshot, positions] = await Promise.all([
-        fetchWalletSnapshot(wallet, heliusKey),
-        fetchPositions(wallet),
-      ]);
+      const snapshot = await fetchWalletSnapshot(wallet, heliusKey);
 
-      const alerts = evaluatePositions(positions, 15);
-      const worstHealth =
-        positions.length > 0
-          ? Math.min(...positions.map((p) => p.healthFactor))
-          : Infinity;
+      // Positions are best-effort: if the on-chain adapters aren't wired
+      // up yet the brief degrades gracefully to wallet-only instead of
+      // reporting fabricated data.
+      let positions: Position[] = [];
+      let positionsAvailable = true;
+      try {
+        positions = await fetchPositions(wallet);
+      } catch (err) {
+        if (err instanceof PositionsUnavailableError) {
+          positionsAvailable = false;
+        } else {
+          throw err;
+        }
+      }
+
+      const alerts = positionsAvailable ? evaluatePositions(positions, 15) : [];
+      const highRiskCount = positions.filter((p) => p.riskLevel === "high").length;
 
       // Deterministic 3-sentence brief. Keeping this synchronous and
       // string-based instead of delegating to the LLM makes the demo
@@ -72,16 +86,18 @@ export const dailyBriefAction: Action = {
         2
       )}/SOL and ${snapshot.tokens.length} SPL tokens.`;
 
-      const line2 =
-        positions.length === 0
+      const line2 = !positionsAvailable
+        ? "DeFi position scanning is not wired up yet, so this brief only covers wallet balance."
+        : positions.length === 0
           ? "No open DeFi positions."
-          : `You have ${positions.length} open position${positions.length === 1 ? "" : "s"} ` +
+          : `You have ${positions.length} active DeFi protocol exposure${positions.length === 1 ? "" : "s"} ` +
             `across ${new Set(positions.map((p) => p.protocol)).size} protocol${
               new Set(positions.map((p) => p.protocol)).size === 1 ? "" : "s"
-            }; worst health factor is ${worstHealth.toFixed(2)}.`;
+            }; ${highRiskCount} high-risk signal${highRiskCount === 1 ? "" : "s"} detected.`;
 
-      const line3 =
-        alerts.length === 0
+      const line3 = !positionsAvailable
+        ? "No DeFi risk alerts can be generated until live scanning is available."
+        : alerts.length === 0
           ? "Nothing requires your attention right now."
           : `${alerts.length} position${alerts.length === 1 ? "" : "s"} need${
               alerts.length === 1 ? "s" : ""
@@ -95,6 +111,7 @@ export const dailyBriefAction: Action = {
         data: {
           solBalance: snapshot.solBalance,
           totalUsd: snapshot.totalUsd,
+          positionsAvailable,
           positionCount: positions.length,
           alertCount: alerts.length,
         },
