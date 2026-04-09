@@ -1,0 +1,59 @@
+{
+  "version": "0.1",
+  "type": "container",
+  "meta": {
+    "trigger": "cli",
+    "name": "solsentinel",
+    "description": "SolSentinel — personal Solana DeFi watchdog built on ElizaOS, running on Nosana"
+  },
+  "ops": [
+    {
+      "id": "solsentinel",
+      "type": "container/run",
+      "execution": {
+        "group": "run"
+      },
+      "args": {
+        "image": "yourusername/solsentinel:latest",
+        "expose": 3000,
+        "entrypoint": ["pnpm", "start"],
+        "env": {
+          "NODE_ENV": "production",
+          "SERVER_PORT": "3000",
+
+          "OPENAI_API_KEY": "nosana",
+          "OPENAI_API_URL": "https://6vq2bcqphcansrs9b88ztxfs88oqy7etah2ugudytv2x.node.k8s.prd.nos.ci/v1",
+          "MODEL_NAME": "Qwen3.5-27B-AWQ-4bit",
+
+          "OPENAI_EMBEDDING_URL": "https://4yiccatpyxx773jtewo5ccwhw1s2hezq5pehndb6fcfq.node.k8s.prd.nos.ci/v1",
+          "OPENAI_EMBEDDING_API_KEY": "nosana",
+          "OPENAI_EMBEDDING_MODEL": "Qwen3-Embedding-0.6B",
+          "OPENAI_EMBEDDING_DIMENSIONS": "1024",
+
+          "HELIUS_API_KEY": "REPLACE_WITH_HELIUS_KEY",
+          "SOLANA_WALLET": "REPLACE_WITH_WALLET_PUBKEY",
+
+          "MOCK_POSITIONS": "true",
+          "LIQUIDATION_WARN_PCT": "15",
+          "DAILY_BRIEF_HOUR_UTC": "7",
+
+          "TELEGRAM_BOT_TOKEN": "REPLACE_WITH_TELEGRAM_TOKEN",
+          "TELEGRAM_CHAT_ID": "REPLACE_WITH_CHAT_ID"
+        },
+        "resources": {
+          "cpu": "500m",
+          "memory": "1536Mi"
+        },
+        "healthCheck": {
+          "type": "http",
+          "path": "/health",
+          "port": 3000,
+          "intervalSeconds": 30,
+          "timeoutSeconds": 5,
+          "initialDelaySeconds": 20
+        },
+        "restartPolicy": "on-failure"
+      }
+    }
+  ]
+}

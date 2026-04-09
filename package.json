@@ -1,0 +1,24 @@
+{
+  "name": "solsentinel",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "start": "elizaos start",
+    "dev": "elizaos dev",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@elizaos/core": "^1.0.0",
+    "@elizaos/plugin-bootstrap": "^1.0.0",
+    "@elizaos/plugin-openai": "^1.0.0",
+    "@elizaos/plugin-telegram": "^1.0.0"
+  },
+  "devDependencies": {
+    "@elizaos/cli": "^1.0.0",
+    "@types/node": "^22.19.17",
+    "typescript": "^5.0.0"
+  }
+}
