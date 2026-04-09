@@ -27,6 +27,10 @@ function getWarnPct(runtime: IAgentRuntime): number {
   return Number.isFinite(n) && n > 0 ? n : 15;
 }
 
+function getHeliusKey(runtime: IAgentRuntime): string {
+  return setting(runtime, "HELIUS_API_KEY");
+}
+
 export const monitorPositionsAction: Action = {
   name: "MONITOR_POSITIONS",
   description:
@@ -47,14 +51,20 @@ export const monitorPositionsAction: Action = {
     callback?: HandlerCallback
   ) => {
     const wallet = getWallet(runtime);
+    const heliusKey = getHeliusKey(runtime);
     if (!wallet) {
       const text = "SOLANA_WALLET is not configured.";
       if (callback) await callback({ text });
       return { success: false, text, error: text };
     }
+    if (!heliusKey) {
+      const text = "HELIUS_API_KEY is not configured.";
+      if (callback) await callback({ text });
+      return { success: false, text, error: text };
+    }
 
     try {
-      const positions = await fetchPositions(wallet);
+      const positions = await fetchPositions(wallet, heliusKey);
       if (positions.length === 0) {
         const text = "No open DeFi positions found.";
         if (callback) await callback({ text });

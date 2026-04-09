@@ -38,12 +38,13 @@ const PROGRAM_IDS: Record<Protocol, string> = {
   drift: "dRiftyHA39MWEi3m9aunc5MzRF1JYuBsbn6VPcn33UH",
 };
 
-function getHeliusKey(): string {
+function getHeliusKey(explicitKey?: string): string {
+  if (explicitKey && explicitKey.length > 0) return explicitKey;
   return process.env.HELIUS_API_KEY ?? "";
 }
 
-function heliusUrl(): string {
-  const key = getHeliusKey();
+function heliusUrl(explicitKey?: string): string {
+  const key = getHeliusKey(explicitKey);
   if (!key) {
     throw new PositionsUnavailableError(
       "HELIUS_API_KEY is missing; cannot run live DeFi risk scanning."
@@ -52,8 +53,12 @@ function heliusUrl(): string {
   return `${HELIUS_MAINNET}${key}`;
 }
 
-async function rpc<T>(method: string, params: unknown[]): Promise<T> {
-  const res = await fetch(heliusUrl(), {
+async function rpc<T>(
+  method: string,
+  params: unknown[],
+  explicitKey?: string
+): Promise<T> {
+  const res = await fetch(heliusUrl(explicitKey), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
@@ -134,11 +139,14 @@ function classifyRisk(
   };
 }
 
-export async function fetchPositions(wallet: string): Promise<Position[]> {
+export async function fetchPositions(
+  wallet: string,
+  heliusKey?: string
+): Promise<Position[]> {
   const signatures = await rpc<SignatureInfo[]>("getSignaturesForAddress", [
     wallet,
     { limit: LOOKBACK_SIGNATURES },
-  ]);
+  ], heliusKey);
 
   if (!Array.isArray(signatures) || signatures.length === 0) {
     return [];
@@ -149,7 +157,7 @@ export async function fetchPositions(wallet: string): Promise<Position[]> {
       rpc<TransactionResult | null>("getTransaction", [
         s.signature,
         { encoding: "json", maxSupportedTransactionVersion: 0 },
-      ]).catch(() => null)
+      ], heliusKey).catch(() => null)
     )
   );
 
