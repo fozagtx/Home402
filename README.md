@@ -142,9 +142,9 @@ DAILY_BRIEF_HOUR_UTC=7
 - **Telegram bot:** `@SolSentinelBot` *(testnet mode)*
 
 **Demo flow (30 seconds):**
-1. Open Telegram → `/status` → see current portfolio in 3 lines
-2. Price feed mock drops SOL 8% → watch SolSentinel fire a liquidation alert in real time on screen
-3. `/brief` → Qwen3.5 returns a natural-language summary of the event
+1. Open Telegram → `/status` → see current portfolio in 3 lines (live Helius data)
+2. `/brief` → Qwen3.5 returns a natural-language summary of the current wallet state
+3. Position scanning (Kamino / MarginFi / Drift) is stubbed out until real on-chain adapters ship — no mock data is ever returned
 
 ## Future Roadmap
 

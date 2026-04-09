@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   type Character,
+  type IAgentRuntime,
   type Plugin,
   type Project,
   type ProjectAgent,
@@ -11,6 +12,7 @@ import { checkWalletHealthAction } from "./actions/checkWalletHealth.js";
 import { monitorPositionsAction } from "./actions/monitorPositions.js";
 import { dailyBriefAction } from "./actions/dailyBrief.js";
 import { healthRoute } from "./routes/health.js";
+import { startDailyBriefScheduler } from "./services/scheduler.js";
 
 // ── Plugin ────────────────────────────────────────────────────────────
 // File-local — NOT a named export. ElizaOS CLI's loadProject() treats any
@@ -51,6 +53,12 @@ const character = JSON.parse(readFileSync(characterPath, "utf-8")) as Character;
 const solSentinelAgent: ProjectAgent = {
   character,
   plugins: [solSentinelPlugin],
+  // Runs once the runtime + plugin-telegram service are up. We arm the
+  // daily-brief cron here so the scheduler has a live Telegram service
+  // to push messages through.
+  init: async (runtime: IAgentRuntime) => {
+    startDailyBriefScheduler(runtime);
+  },
 };
 
 const project: Project = {
