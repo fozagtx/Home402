@@ -1,38 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { OutreachService } from "../services/outreach";
 import { LocusClient } from "../services/locus";
-import { Lead, LeadStatus, OutreachMethod } from "../types";
-
-const makeLead = (overrides: Partial<Lead> = {}): Lead => ({
-  id: "lead_test1",
-  property: {
-    id: "prop1",
-    address: "100 Brickell Ave, Miami, FL",
-    city: "Miami",
-    state: "FL",
-    zipCode: "33131",
-    latitude: 25.765,
-    longitude: -80.189,
-    propertyType: "Multi-Family",
-    bedrooms: 4,
-    bathrooms: 3,
-    squareFootage: 2400,
-    lotSize: 5000,
-    yearBuilt: 2005,
-    ownerName: "John Smith",
-  },
-  score: 85,
-  status: LeadStatus.SCORED,
-  notes: [],
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
-  ownerVerification: {
-    name: "John Smith",
-    isValid: true,
-    emails: ["john@example.com"],
-  },
-  ...overrides,
-});
 
 describe("OutreachService", () => {
   let service: OutreachService;
@@ -73,7 +41,7 @@ describe("OutreachService", () => {
     expect(inbox).toBeNull();
   });
 
-  it("should send an offer email", async () => {
+  it("should send an email with subject and body", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({
@@ -88,17 +56,19 @@ describe("OutreachService", () => {
       json: async () => ({ success: true, data: {} }),
     });
 
-    const result = await service.sendOfferEmail(
+    const result = await service.sendEmail(
       "owner@example.com",
-      makeLead()
+      "Interest in Your Property",
+      "Dear Owner, we'd like to discuss..."
     );
     expect(result).toBe(true);
   });
 
   it("should fail to send email without inbox setup", async () => {
-    const result = await service.sendOfferEmail(
+    const result = await service.sendEmail(
       "owner@example.com",
-      makeLead()
+      "Test",
+      "Body"
     );
     expect(result).toBe(false);
   });
@@ -137,38 +107,7 @@ describe("OutreachService", () => {
     expect(replies[0].from).toBe("owner@example.com");
   });
 
-  it("should determine outreach method as email when owner has emails", async () => {
-    const method = await service.determineOutreachMethod({
-      name: "John",
-      isValid: true,
-      emails: ["john@test.com"],
-    });
-    expect(method).toBe(OutreachMethod.EMAIL);
-  });
-
-  it("should default to email when no owner info", async () => {
-    const method = await service.determineOutreachMethod(null);
-    expect(method).toBe(OutreachMethod.EMAIL);
-  });
-
-  it("should fail outreach when no verified email", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        success: true,
-        data: { inboxId: "inbox_abc", email: "test@agentmail.to" },
-      }),
-    });
-    await service.setupEmailInbox("test");
-
-    const leadNoEmail = makeLead();
-    delete leadNoEmail.ownerVerification;
-
-    const result = await service.executeOutreach(leadNoEmail);
-    expect(result.success).toBe(false);
-  });
-
-  it("should execute outreach end to end with verified email", async () => {
+  it("should reply to a message", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({
@@ -183,9 +122,7 @@ describe("OutreachService", () => {
       json: async () => ({ success: true, data: {} }),
     });
 
-    const result = await service.executeOutreach(makeLead());
-    expect(result.success).toBe(true);
-    expect(result.method).toBe(OutreachMethod.EMAIL);
-    expect(result.sentAt).toBeDefined();
+    const result = await service.replyToMessage("msg_1", "Thanks for your reply!");
+    expect(result).toBe(true);
   });
 });

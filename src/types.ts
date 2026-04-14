@@ -137,6 +137,8 @@ export interface SearchCriteria {
 export interface AgentConfig {
   locusApiKey: string;
   locusApiBase: string;
+  openrouterApiKey: string;
+  openrouterModel: string;
   searchCity: string;
   searchState: string;
   searchPropertyType: string;

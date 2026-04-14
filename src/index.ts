@@ -10,10 +10,19 @@ function loadConfig(): AgentConfig {
     process.exit(1);
   }
 
+  const openrouterApiKey = process.env.OPENROUTER_API_KEY;
+  if (!openrouterApiKey) {
+    console.error("OPENROUTER_API_KEY is required");
+    process.exit(1);
+  }
+
   return {
     locusApiKey: apiKey,
     locusApiBase:
       process.env.LOCUS_API_BASE || "https://api.paywithlocus.com/api",
+    openrouterApiKey,
+    openrouterModel:
+      process.env.OPENROUTER_MODEL || "google/gemini-2.0-flash-001",
     searchCity: process.env.SEARCH_CITY || "Miami",
     searchState: process.env.SEARCH_STATE || "FL",
     searchPropertyType: process.env.SEARCH_PROPERTY_TYPE || "Multi-Family",
