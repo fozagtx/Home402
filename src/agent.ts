@@ -1,5 +1,5 @@
 import { LocusClient } from "./services/locus";
-import { LLMService } from "./services/llm";
+import { LLMService } from "./services/ai";
 import { PropertySearchService } from "./services/propertySearch";
 import { DueDiligenceService } from "./services/dueDiligence";
 import { OutreachService } from "./services/outreach";
