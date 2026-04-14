@@ -27,7 +27,7 @@ src/
 └── services/
     ├── locus.ts                Locus API client (wallet, wrapped APIs, x402)
     ├── propertySearch.ts       RentCast + Mapbox property hunting
-    ├── dueDiligence.ts         Whitepages Pro + Abstract API + BuiltWith
+    ├── dueDiligence.ts         Whitepages + BuiltWith owner/tech verification
     ├── outreach.ts             AgentMail email outreach
     └── leadManager.ts          Lead lifecycle, scoring, reporting
 ```
@@ -40,8 +40,7 @@ Every external API call goes through Locus wrapped APIs — no separate accounts
 |---------|---------|-----------|
 | **RentCast** | Property records, AVM valuations, rent estimates, market stats | ~$0.033 |
 | **Mapbox** | Geocoding, static maps, spatial queries | ~$0.004 |
-| **Whitepages Pro** | Owner identity verification, reverse lookup | ~$0.055 |
-| **Abstract API** | Email validation fallback | ~$0.015 |
+| **Whitepages** | Owner person search, property ownership lookup | ~$0.015 |
 | **BuiltWith** | Business tech stack profiling | ~$0.055 |
 | **AgentMail** | Agent email inbox (x402) | ~$2.00 inbox, ~$0.01/email |
 

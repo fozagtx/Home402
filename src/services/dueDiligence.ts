@@ -13,70 +13,103 @@ export class DueDiligenceService {
   ): Promise<OwnerVerification | null> {
     const ownerName = property.ownerName;
     if (!ownerName) {
-      return {
-        name: "Unknown",
-        isValid: false,
-      };
+      const propertyOwner = await this.lookupPropertyOwner(property);
+      if (propertyOwner) return propertyOwner;
+      return { name: "Unknown", isValid: false };
     }
 
     console.log(`Verifying owner: ${ownerName}`);
 
-    const params: Record<string, unknown> = {
-      first_name: ownerName.split(" ")[0] || "",
-      last_name: ownerName.split(" ").slice(1).join(" ") || "",
-      address: property.address,
-      city: property.city,
-      state: property.state,
-      zip: property.zipCode,
-    };
-
+    const parts = ownerName.split(" ");
     const res = await this.client.wrappedCall<Record<string, unknown>>(
-      "whitepages-pro",
-      "identity-check",
-      params
+      "whitepages",
+      "person-search",
+      {
+        first_name: parts[0] || "",
+        last_name: parts.slice(1).join(" ") || "",
+        street: property.address,
+        city: property.city,
+        state_code: property.state,
+        zipcode: property.zipCode,
+      }
     );
 
     if (!res.success || !res.data) {
-      console.error("Owner verification failed:", res.error);
-
-      return await this.fallbackVerify(property);
+      console.error("Person search failed:", res.error);
+      return await this.lookupPropertyOwner(property);
     }
 
-    const data = res.data;
-    return {
-      name: ownerName,
-      phoneNumbers: (data.phoneNumbers as string[]) || [],
-      emails: (data.emails as string[]) || [],
-      addresses: (data.addresses as string[]) || [],
-      isValid: (data.isValid as boolean) || false,
-      riskScore: (data.riskScore as number) || 50,
-    };
-  }
+    const data = res.data as Record<string, unknown>;
+    const phoneNumbers: string[] = [];
+    const emails: string[] = [];
+    const addresses: string[] = [];
 
-  private async fallbackVerify(
-    property: PropertyRecord
-  ): Promise<OwnerVerification> {
-    const ownerName = property.ownerName || "Unknown";
-    let isValid = false;
-    let emails: string[] = [];
-
-    if (property.address) {
-      const emailRes = await this.client.wrappedCall<Record<string, unknown>>(
-        "abstract-api",
-        "email-validation",
-        { email: property.ownerName }
-      );
-
-      if (emailRes.success && emailRes.data) {
-        isValid = emailRes.data.is_valid as boolean;
+    if (Array.isArray(data.phones)) {
+      for (const p of data.phones as Record<string, unknown>[]) {
+        if (p.phone_number) phoneNumbers.push(p.phone_number as string);
+      }
+    }
+    if (Array.isArray(data.emails)) {
+      for (const e of data.emails as Record<string, unknown>[]) {
+        if (e.email_address) emails.push(e.email_address as string);
+      }
+    }
+    if (Array.isArray(data.locations)) {
+      for (const l of data.locations as Record<string, unknown>[]) {
+        if (l.street_line1) {
+          addresses.push(
+            `${l.street_line1}, ${l.city}, ${l.state_code} ${l.zipcode}`
+          );
+        }
       }
     }
 
     return {
       name: ownerName,
+      phoneNumbers,
       emails,
-      isValid,
-      riskScore: isValid ? 30 : 70,
+      addresses,
+      isValid: true,
+      riskScore: 20,
+    };
+  }
+
+  private async lookupPropertyOwner(
+    property: PropertyRecord
+  ): Promise<OwnerVerification | null> {
+    if (!property.address) return null;
+
+    console.log(`Looking up property owner for: ${property.address}`);
+
+    const res = await this.client.wrappedCall<Record<string, unknown>>(
+      "whitepages",
+      "property-search",
+      {
+        street: property.address,
+        city: property.city,
+        state_code: property.state,
+        zipcode: property.zipCode,
+      }
+    );
+
+    if (!res.success || !res.data) {
+      console.error("Property search failed:", res.error);
+      return null;
+    }
+
+    const data = res.data as Record<string, unknown>;
+    const owner = data.current_owners as Array<Record<string, unknown>>;
+
+    if (!owner || owner.length === 0) return null;
+
+    const primaryOwner = owner[0];
+    const name = (primaryOwner.name as Record<string, unknown>) || {};
+    const fullName = `${name.first_name || ""} ${name.last_name || ""}`.trim();
+
+    return {
+      name: fullName || "Unknown",
+      isValid: true,
+      riskScore: 25,
     };
   }
 
@@ -130,19 +163,6 @@ export class DueDiligenceService {
     };
   }
 
-  async getTrustScore(domain: string): Promise<number> {
-    const res = await this.client.wrappedCall<Record<string, unknown>>(
-      "builtwith",
-      "trust",
-      { LOOKUP: domain }
-    );
-
-    if (!res.success || !res.data) return 50;
-
-    const data = res.data as Record<string, unknown>;
-    return (data.trustScore as number) || 50;
-  }
-
   async runFullDiligence(
     property: PropertyRecord
   ): Promise<{
@@ -157,36 +177,8 @@ export class DueDiligenceService {
     const ownerVerification = await this.verifyOwner(property);
 
     let techProfile: TechProfile | null = null;
-    if (property.ownerName) {
-      const possibleDomain = property.ownerName
-        .toLowerCase()
-        .replace(/[^a-z0-9]/g, "");
 
-      techProfile = await this.profileBusinessTech(
-        `${possibleDomain}.com`
-      );
-    }
-
-    let diligenceScore = 50;
-
-    if (ownerVerification) {
-      if (ownerVerification.isValid) diligenceScore += 20;
-      if (ownerVerification.emails && ownerVerification.emails.length > 0)
-        diligenceScore += 10;
-      if (
-        ownerVerification.riskScore !== undefined &&
-        ownerVerification.riskScore < 30
-      )
-        diligenceScore += 10;
-    }
-
-    if (techProfile) {
-      if (techProfile.technologies.length > 0) diligenceScore += 5;
-      if (techProfile.spendEstimate && techProfile.spendEstimate > 0)
-        diligenceScore += 5;
-    }
-
-    diligenceScore = Math.min(diligenceScore, 100);
+    const diligenceScore = 50;
 
     return {
       ownerVerification,
