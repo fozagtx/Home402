@@ -214,9 +214,14 @@ Powered by Locus (USDC payments on Base)`;
     let success = false;
 
     if (method === OutreachMethod.EMAIL) {
-      const email =
-        lead.ownerVerification?.emails?.[0] ||
-        `${lead.property.ownerName?.toLowerCase().replace(/\s+/g, ".")}@example.com`;
+      const email = lead.ownerVerification?.emails?.[0];
+
+      if (!email) {
+        console.error(
+          `No verified email for lead ${lead.id}. Cannot reach out.`
+        );
+        return { success: false, method, sentAt: new Date().toISOString() };
+      }
 
       success = await this.sendOfferEmail(email, lead);
     }
