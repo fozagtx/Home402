@@ -12,7 +12,7 @@ export class LLMService {
       baseURL: "https://openrouter.ai/api/v1",
       apiKey,
       headers: {
-        "HTTP-Referer": "https://github.com/fozagtx/Home402",
+        "HTTP-Referer": "https://paywithlocus.com",
       },
     });
 
