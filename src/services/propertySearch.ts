@@ -21,7 +21,8 @@ export class PropertySearchService {
     const params: Record<string, unknown> = {
       city: criteria.city,
       state: criteria.state,
-      limit: criteria.limit || 50,
+      status: "Active",
+      limit: criteria.limit || 20,
     };
 
     if (criteria.propertyType) params.propertyType = criteria.propertyType;
@@ -30,10 +31,11 @@ export class PropertySearchService {
     if (criteria.minBedrooms)
       params.bedrooms = String(criteria.minBedrooms);
     if (criteria.maxPrice) params.price = criteria.maxPrice;
+    if (criteria.daysOld) params.daysOld = String(criteria.daysOld);
 
     let res = await this.client.wrappedCall<PropertyRecord[]>(
       "rentcast",
-      "properties",
+      "sale-listings",
       params
     );
 
@@ -42,14 +44,23 @@ export class PropertySearchService {
       await new Promise((r) => setTimeout(r, 2000));
       res = await this.client.wrappedCall<PropertyRecord[]>(
         "rentcast",
-        "properties",
+        "sale-listings",
         params
       );
     }
 
     if (!res.success || !res.data) {
-      console.error("Property search failed:", res.error, res.message);
-      return [];
+      console.error("Sale listings failed, trying properties endpoint:", res.error, res.message);
+      const fallback = await this.client.wrappedCall<PropertyRecord[]>(
+        "rentcast",
+        "properties",
+        { city: criteria.city, state: criteria.state, limit: criteria.limit || 20 }
+      );
+      if (!fallback.success || !fallback.data) {
+        console.error("Property search also failed:", fallback.error);
+        return [];
+      }
+      res = fallback;
     }
 
     const raw = Array.isArray(res.data) ? res.data : [];
@@ -67,8 +78,8 @@ export class PropertySearchService {
       squareFootage: p.squareFootage,
       lotSize: p.lotSize,
       yearBuilt: p.yearBuilt,
-      lastSalePrice: p.lastSalePrice,
-      lastSaleDate: p.lastSaleDate,
+      lastSalePrice: p.price || p.lastSalePrice,
+      lastSaleDate: p.listedDate || p.lastSaleDate,
     }));
   }
 

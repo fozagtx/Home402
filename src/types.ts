@@ -131,6 +131,7 @@ export interface SearchCriteria {
   radius?: number;
   minBedrooms?: number;
   maxPrice?: string;
+  daysOld?: number;
   limit?: number;
 }
 

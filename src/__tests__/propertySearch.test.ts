@@ -21,7 +21,7 @@ describe("PropertySearchService", () => {
         data: [
           {
             id: "prop1",
-            address: "100 Brickell Ave, Miami, FL",
+            formattedAddress: "100 Brickell Ave, Miami, FL",
             city: "Miami",
             state: "FL",
             zipCode: "33131",
@@ -33,7 +33,7 @@ describe("PropertySearchService", () => {
             squareFootage: 2400,
             lotSize: 5000,
             yearBuilt: 2005,
-            lastSalePrice: 350000,
+            price: 350000,
           },
         ],
       }),
@@ -51,7 +51,7 @@ describe("PropertySearchService", () => {
   });
 
   it("should return empty array on failed search", async () => {
-    mockFetch.mockResolvedValueOnce({
+    mockFetch.mockResolvedValue({
       ok: false,
       json: async () => ({ success: false, error: "Bad request" }),
     });
