@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { RealEstateAgent } from "./agent";
 import { TelegramBot } from "./telegram";
+import { Dashboard } from "./dashboard";
 import { AgentConfig } from "./types";
 
 function loadConfig(): AgentConfig {
@@ -45,6 +46,10 @@ async function main() {
     console.error("Agent initialization failed");
     process.exit(1);
   }
+
+  const port = parseInt(process.env.PORT || "3000", 10);
+  const dashboard = new Dashboard(agent, port);
+  dashboard.start();
 
   const telegramToken = process.env.TELEGRAM_BOT_TOKEN;
   if (telegramToken) {
