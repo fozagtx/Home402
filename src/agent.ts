@@ -248,31 +248,44 @@ export class RealEstateAgent {
     };
 
     console.log("=== AGENT: Searching properties ===");
-    const results = await this.propertySearch.findUndervaluedProperties(searchCriteria);
-    console.log(`Found ${results.length} properties\n`);
+    const properties = await this.propertySearch.searchProperties(searchCriteria);
+    console.log(`Found ${properties.length} properties`);
+
+    if (properties.length === 0) return [];
 
     const newLeads: Lead[] = [];
 
-    for (const result of results) {
-      const lead = this.leadManager.createLead(result.property);
-      this.leadManager.enrichLead(lead.id, {
-        valueEstimate: result.valueEstimate,
-        rentalEstimate: result.rentalEstimate,
-      });
+    for (const property of properties.slice(0, 15)) {
+      try {
+        const lead = this.leadManager.createLead(property);
 
-      const diligence = await this.dueDiligence.runFullDiligence(result.property);
-      this.leadManager.addDiligence(lead.id, {
-        ownerVerification: diligence.ownerVerification ?? undefined,
-        techProfile: diligence.techProfile ?? undefined,
-      });
+        const address = property.address || `${property.latitude},${property.longitude}`;
+        const [valueEstimate, rentalEstimate] = await Promise.all([
+          this.propertySearch.getValueEstimate(
+            address, property.propertyType, property.bedrooms,
+            property.bathrooms, property.squareFootage
+          ).catch(() => null),
+          this.propertySearch.getRentalEstimate(
+            address, property.propertyType, property.bedrooms,
+            property.bathrooms, property.squareFootage
+          ).catch(() => null),
+        ]);
 
-      const freshLead = this.leadManager.getLead(lead.id);
-      if (!freshLead) continue;
+        if (valueEstimate || rentalEstimate) {
+          this.leadManager.enrichLead(lead.id, {
+            valueEstimate: valueEstimate || undefined,
+            rentalEstimate: rentalEstimate || undefined,
+          });
+        }
 
-      const scored = await this.thinkAndScore(freshLead);
-      if (scored) newLeads.push(scored);
+        const scored = this.leadManager.scoreLead(lead.id);
+        if (scored) newLeads.push(scored);
+      } catch (err) {
+        console.error(`Failed processing property: ${(err as Error).message}`);
+      }
     }
 
+    console.log(`Scored ${newLeads.length} leads\n`);
     return newLeads;
   }
 
