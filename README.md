@@ -1,7 +1,7 @@
 # Home402 — Autonomous Commercial Real Estate Lead Hunter
 
 <p align="center">
-  <img src="src/Screenshot 2026-04-15 at 2.10.12AM.png" alt="Home402 Dashboard" width="800" />
+  <img src="src/agent.png" alt="Home402 Dashboard" width="800" />
 </p>
 
 An AI agent that hunts undervalued commercial properties, verifies owners, sends automated offers, and only surfaces leads to you when the owner responds — all paid per-use through [Locus](https://paywithlocus.com) USDC on Base.
