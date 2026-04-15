@@ -57,15 +57,26 @@ export class OutreachService {
 
     console.log(`Sending email to: ${toEmail}`);
 
-    const res = await this.client.x402Call<unknown>(
+    let res = await this.client.x402Call<unknown>(
       "agentmail-send-message",
       {
-        inbox_id: this.inboxId,
-        to: [{ email: toEmail }],
+        to: toEmail,
         subject,
-        body,
+        text: body,
       }
     );
+
+    if (!res.success && res.error?.includes("Validation")) {
+      res = await this.client.x402Call<unknown>(
+        "agentmail-send-message",
+        {
+          inbox_id: this.inboxId,
+          to: [{ email: toEmail }],
+          subject,
+          body,
+        }
+      );
+    }
 
     if (!res.success) {
       console.error("Failed to send email:", res.error);
@@ -127,7 +138,7 @@ export class OutreachService {
       {
         inbox_id: this.inboxId,
         message_id: messageId,
-        body,
+        text: body,
       }
     );
 
