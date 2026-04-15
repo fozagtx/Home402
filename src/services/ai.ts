@@ -136,6 +136,35 @@ export class LLMService {
     }
   }
 
+  private escapeMd(text: string): string {
+    return text.replace(/([_*\[\]()~`>#+\-=|{}.!])/g, "\\$1");
+  }
+
+  async formatTelegramMessage(
+    context: string,
+    data: Record<string, unknown>
+  ): Promise<string> {
+    const dataStr = JSON.stringify(data, null, 2);
+    try {
+      const result = await generateText({
+        model: this.model,
+        system:
+          "You are a Telegram message formatter. Output ONLY the message text in valid Telegram MarkdownV2 format. " +
+          "Escape these chars with backslash in plain text: _ * [ ] ( ) ~ ` > # + - = | { } . ! " +
+          "Use *bold* for headings and emphasis. Be concise, scannable, use emojis sparingly. " +
+          "Do NOT wrap in code blocks. Do NOT add explanation. Just the message. " +
+          "Do NOT invent data not provided. Only use what is in the data.",
+        prompt: `Context: ${context}\n\nData:\n${dataStr}`,
+        temperature: 0.3,
+      });
+      const msg = result.text.trim();
+      return msg || this.escapeMd(`${context}\n${dataStr}`);
+    } catch (err) {
+      console.error("Telegram message formatting failed:", (err as Error).message);
+      return this.escapeMd(`${context}\n${dataStr}`);
+    }
+  }
+
   async decideOutreachMethod(
     ownerInfo: string,
     propertySummary: string

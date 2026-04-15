@@ -38,7 +38,7 @@ function loadConfig(): AgentConfig {
 
 async function main() {
   const config = loadConfig();
-  const agent = new RealEstateAgent(config);
+  const agent = new RealEstateAgent(config, process.env.SUPERMEMORY_API_KEY);
 
   const ok = await agent.init();
   if (!ok) {

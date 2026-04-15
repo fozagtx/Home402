@@ -13,29 +13,54 @@ describe("OutreachService", () => {
     vi.stubGlobal("fetch", mockFetch);
   });
 
-  it("should create an AgentMail inbox", async () => {
+  it("should reuse existing inbox when list-messages succeeds", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({
         success: true,
-        data: {
-          inboxId: "inbox_abc123",
-          email: "home402@agentmail.to",
-        },
+        data: { count: 0, messages: [] },
       }),
     });
 
     const inbox = await service.setupEmailInbox("home402");
     expect(inbox).not.toBeNull();
     expect(inbox!.email).toBe("home402@agentmail.to");
-    expect(inbox!.inboxId).toBe("inbox_abc123");
+    expect(inbox!.inboxId).toBe("home402@agentmail.to");
   });
 
-  it("should return null on failed inbox creation", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      json: async () => ({ success: false, error: "Unauthorized" }),
-    });
+  it("should create inbox when list-messages fails", async () => {
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        json: async () => ({ success: false, error: "Forbidden" }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          success: true,
+          data: { inboxId: "inbox_new", email: "test@agentmail.to" },
+        }),
+      });
+
+    const inbox = await service.setupEmailInbox("test");
+    expect(inbox).not.toBeNull();
+    expect(inbox!.email).toBe("test@agentmail.to");
+    expect(inbox!.inboxId).toBe("inbox_new");
+  });
+
+  it("should return null when both check and create fail", async () => {
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        json: async () => ({ success: false, error: "Forbidden" }),
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 402,
+        json: async () => ({ success: false, error: "Payment Failed", message: "Insufficient balance" }),
+      });
 
     const inbox = await service.setupEmailInbox("test");
     expect(inbox).toBeNull();
@@ -46,7 +71,7 @@ describe("OutreachService", () => {
       ok: true,
       json: async () => ({
         success: true,
-        data: { inboxId: "inbox_abc", email: "test@agentmail.to" },
+        data: { count: 0 },
       }),
     });
     await service.setupEmailInbox("test");
@@ -78,7 +103,7 @@ describe("OutreachService", () => {
       ok: true,
       json: async () => ({
         success: true,
-        data: { inboxId: "inbox_abc", email: "test@agentmail.to" },
+        data: { count: 0 },
       }),
     });
     await service.setupEmailInbox("test");
@@ -112,7 +137,7 @@ describe("OutreachService", () => {
       ok: true,
       json: async () => ({
         success: true,
-        data: { inboxId: "inbox_abc", email: "test@agentmail.to" },
+        data: { count: 0 },
       }),
     });
     await service.setupEmailInbox("test");

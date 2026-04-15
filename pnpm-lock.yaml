@@ -20,6 +20,9 @@ importers:
       grammy:
         specifier: ^1.34.0
         version: 1.42.0
+      supermemory:
+        specifier: ^4.21.1
+        version: 4.21.1
       zod:
         specifier: ^4.3.6
         version: 4.3.6
@@ -611,6 +614,10 @@ packages:
   std-env@4.0.0:
     resolution: {integrity: sha512-zUMPtQ/HBY3/50VbpkupYHbRroTRZJPRLvreamgErJVys0ceuzMkD44J/QjqhHjOzK42GQ3QZIeFG1OYfOtKqQ==}
 
+  supermemory@4.21.1:
+    resolution: {integrity: sha512-KayOHtD94g7O+yN2qxaHEO5UIXtDl+duaKuhW7gvaraVtP1RHxFn80Pb5s5rKmqIvC+ruaARRlgMw7s/y+6LGQ==}
+    hasBin: true
+
   tinybench@2.9.0:
     resolution: {integrity: sha512-0+DUvqWMValLmha6lr4kD8iAMK1HzV0/aKnCtWb9v9641TnP/MFb7Pc2bxoxQjTXAErryXVgUOfv2YqNllqGeg==}
 
@@ -1187,6 +1194,8 @@ snapshots:
   stackback@0.0.2: {}
 
   std-env@4.0.0: {}
+
+  supermemory@4.21.1: {}
 
   tinybench@2.9.0: {}
 

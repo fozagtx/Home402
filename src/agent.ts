@@ -4,6 +4,7 @@ import { PropertySearchService } from "./services/propertySearch";
 import { DueDiligenceService } from "./services/dueDiligence";
 import { OutreachService } from "./services/outreach";
 import { LeadManager } from "./services/leadManager";
+import { MemoryService } from "./services/memory";
 import {
   AgentConfig,
   Lead,
@@ -19,8 +20,9 @@ export class RealEstateAgent {
   private dueDiligence: DueDiligenceService;
   private outreach: OutreachService;
   private leadManager: LeadManager;
+  private memory: MemoryService;
 
-  constructor(config: AgentConfig) {
+  constructor(config: AgentConfig, memoryApiKey?: string) {
     this.config = config;
     this.locus = new LocusClient(config.locusApiKey, config.locusApiBase);
     this.llm = new LLMService(
@@ -31,6 +33,7 @@ export class RealEstateAgent {
     this.dueDiligence = new DueDiligenceService(this.locus);
     this.outreach = new OutreachService(this.locus);
     this.leadManager = new LeadManager();
+    this.memory = new MemoryService(memoryApiKey);
   }
 
   async init(): Promise<boolean> {
@@ -334,4 +337,5 @@ export class RealEstateAgent {
   getDueDiligence(): DueDiligenceService { return this.dueDiligence; }
   getOutreach(): OutreachService { return this.outreach; }
   getConfig(): AgentConfig { return this.config; }
+  getMemory(): MemoryService { return this.memory; }
 }

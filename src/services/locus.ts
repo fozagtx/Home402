@@ -47,8 +47,14 @@ export class LocusClient {
   }
 
   async getBalance(): Promise<LocusBalance | null> {
-    const res = await this.request<LocusBalance>("/pay/balance");
-    return res.success && res.data ? res.data : null;
+    const res = await this.request<any>("/pay/balance");
+    if (!res.success || !res.data) return null;
+    const d = res.data;
+    return {
+      balance: d.usdc_balance ?? d.balance ?? "0",
+      token: "USDC",
+      wallet_address: d.wallet_address ?? "",
+    };
   }
 
   async wrappedCall<T>(

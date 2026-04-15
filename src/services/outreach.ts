@@ -14,23 +14,33 @@ export class OutreachService {
     inboxId: string;
     email: string;
   } | null> {
-    console.log(`Setting up AgentMail inbox: ${username}@agentmail.to`);
+    const email = `${username}@agentmail.to`;
+    this.inboxId = email;
+    this.inboxEmail = email;
 
+    const check = await this.client.x402Call<{ count: number }>(
+      "agentmail-list-messages",
+      { inbox_id: this.inboxId }
+    );
+
+    if (check.success) {
+      console.log(`Inbox ready: ${email}`);
+      return { inboxId: this.inboxId, email: this.inboxEmail };
+    }
+
+    console.log(`Inbox not found, creating: ${email}`);
     const res = await this.client.x402Call<{
       inboxId: string;
       email: string;
-    }>("agentmail-create-inbox", {
-      username,
-    });
+    }>("agentmail-create-inbox", { username });
 
     if (!res.success || !res.data) {
-      console.error("Failed to create inbox:", res.error);
+      console.error("Failed to create inbox:", res.error, res.message);
       return null;
     }
 
     this.inboxId = res.data.inboxId;
     this.inboxEmail = res.data.email;
-
     console.log(`Inbox created: ${res.data.email}`);
     return res.data;
   }
