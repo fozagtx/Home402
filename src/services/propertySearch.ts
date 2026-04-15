@@ -31,11 +31,21 @@ export class PropertySearchService {
       params.bedrooms = String(criteria.minBedrooms);
     if (criteria.maxPrice) params.price = criteria.maxPrice;
 
-    const res = await this.client.wrappedCall<PropertyRecord[]>(
+    let res = await this.client.wrappedCall<PropertyRecord[]>(
       "rentcast",
       "properties",
       params
     );
+
+    if (!res.success) {
+      console.log("Retrying property search...");
+      await new Promise((r) => setTimeout(r, 2000));
+      res = await this.client.wrappedCall<PropertyRecord[]>(
+        "rentcast",
+        "properties",
+        params
+      );
+    }
 
     if (!res.success || !res.data) {
       console.error("Property search failed:", res.error, res.message);

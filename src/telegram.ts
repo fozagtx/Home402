@@ -114,7 +114,7 @@ export class TelegramBot {
       const leads = await this.agent.searchAndScore({ city, state });
 
       if (leads.length === 0) {
-        await this.send(ctx, `Nothing found in ${city}, ${state}. Try another city?`);
+        await this.send(ctx, `No results for ${city}, ${state}. The Locus/RentCast API may be temporarily down (502s are common). Try again in a minute, or try another city like Tampa, Orlando, or Austin.`);
         return;
       }
 
