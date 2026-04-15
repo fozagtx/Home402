@@ -38,11 +38,28 @@ export class PropertySearchService {
     );
 
     if (!res.success || !res.data) {
-      console.error("Property search failed:", res.error);
+      console.error("Property search failed:", res.error, res.message);
       return [];
     }
 
-    return Array.isArray(res.data) ? res.data : [];
+    const raw = Array.isArray(res.data) ? res.data : [];
+    return raw.map((p: any) => ({
+      id: p.id,
+      address: p.formattedAddress || p.addressLine1 || p.address || p.id,
+      city: p.city,
+      state: p.state,
+      zipCode: p.zipCode,
+      latitude: p.latitude,
+      longitude: p.longitude,
+      propertyType: p.propertyType,
+      bedrooms: p.bedrooms,
+      bathrooms: p.bathrooms,
+      squareFootage: p.squareFootage,
+      lotSize: p.lotSize,
+      yearBuilt: p.yearBuilt,
+      lastSalePrice: p.lastSalePrice,
+      lastSaleDate: p.lastSaleDate,
+    }));
   }
 
   async getValueEstimate(
@@ -69,7 +86,19 @@ export class PropertySearchService {
       return null;
     }
 
-    return res.data;
+    const d = res.data as any;
+    return {
+      price: d.price,
+      priceLow: d.priceRangeLow ?? d.priceLow ?? 0,
+      priceHigh: d.priceRangeHigh ?? d.priceHigh ?? 0,
+      confidence: d.confidence || "Medium",
+      comparables: (d.comparables || []).map((c: any) => ({
+        address: c.formattedAddress || c.address || c.id,
+        price: c.price,
+        distance: c.distance,
+        daysAgo: c.daysOld ?? c.daysAgo ?? 0,
+      })),
+    };
   }
 
   async getRentalEstimate(
@@ -96,7 +125,19 @@ export class PropertySearchService {
       return null;
     }
 
-    return res.data;
+    const d = res.data as any;
+    return {
+      rent: d.rent,
+      rentLow: d.rentRangeLow ?? d.rentLow ?? 0,
+      rentHigh: d.rentRangeHigh ?? d.rentHigh ?? 0,
+      confidence: d.confidence || "Medium",
+      comparables: (d.comparables || []).map((c: any) => ({
+        address: c.formattedAddress || c.address || c.id,
+        rent: c.price ?? c.rent ?? 0,
+        distance: c.distance,
+        daysAgo: c.daysOld ?? c.daysAgo ?? 0,
+      })),
+    };
   }
 
   async getMarketStats(
