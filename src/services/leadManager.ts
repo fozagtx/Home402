@@ -78,7 +78,7 @@ export class LeadManager {
     const lead = this.leads.get(leadId);
     if (!lead) return null;
 
-    let score = 0;
+    let score = 30;
 
     if (lead.valueEstimate) {
       const lastSale = lead.property.lastSalePrice || 0;
@@ -86,7 +86,7 @@ export class LeadManager {
 
       if (lastSale > 0 && marketValue > lastSale) {
         const discount = (marketValue - lastSale) / marketValue;
-        score += Math.min(discount * 200, 25);
+        score += Math.min(discount * 200, 20);
       }
 
       if (lead.valueEstimate.confidence === "High") score += 10;
@@ -96,27 +96,24 @@ export class LeadManager {
     if (lead.rentalEstimate && lead.valueEstimate) {
       const annualRent = lead.rentalEstimate.rent * 12;
       const capRate = annualRent / lead.valueEstimate.price;
-      score += Math.min(capRate * 150, 20);
+      score += Math.min(capRate * 150, 15);
+    }
+
+    if (lead.property.lastSalePrice && lead.property.lastSalePrice > 0) {
+      score += 5;
+    }
+
+    if (lead.property.squareFootage && lead.property.squareFootage > 1000) {
+      score += 5;
+    }
+
+    if (lead.property.bedrooms && lead.property.bedrooms >= 3) {
+      score += 5;
     }
 
     if (lead.ownerVerification) {
-      if (lead.ownerVerification.isValid) score += 15;
+      if (lead.ownerVerification.isValid) score += 10;
       if (lead.ownerVerification.emails && lead.ownerVerification.emails.length > 0)
-        score += 10;
-      if (
-        lead.ownerVerification.riskScore !== undefined &&
-        lead.ownerVerification.riskScore < 30
-      )
-        score += 5;
-    }
-
-    if (lead.techProfile) {
-      if (lead.techProfile.spendEstimate && lead.techProfile.spendEstimate > 1000)
-        score += 5;
-    }
-
-    if (lead.marketStats) {
-      if (lead.marketStats.daysOnMarket && lead.marketStats.daysOnMarket < 30)
         score += 5;
     }
 
